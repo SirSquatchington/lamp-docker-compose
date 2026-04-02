@@ -68,3 +68,29 @@ Technologies Used
     • MySQL 8.0 
     • phpMyAdmin 
     • WSL 2 (Ubuntu on Windows) 
+
+
+---
+
+## Observability Stack
+
+This project also includes a full monitoring stack built on Prometheus and Grafana.
+
+### Additional Containers
+
+- **Apache Exporter** — translates Apache's `/server-status` page into Prometheus format
+- **Prometheus** — scrapes and stores metrics every 15 seconds
+- **Grafana** — visualizes metrics as live dashboards
+
+### Accessing the Monitoring Tools
+
+- `http://localhost:9090` — Prometheus UI and target health
+- `http://localhost:3000` — Grafana (login: `admin` / `admin`)
+
+In Grafana, add Prometheus as a data source using `http://prometheus:9090`, then build dashboards using metrics like `apache_accesses_total`, `apache_workers`, and `apache_cpu_load`.
+
+### What I Ran Into
+
+**Apache's status page is locked down by default** — enabling `mod_status` wasn't enough. I had to create an `apache-status.conf` file explicitly opening the endpoint and copy it into the container via the Dockerfile.
+
+**The exporter pattern** — Prometheus can't scrape Apache directly since Apache doesn't natively expose metrics in Prometheus format. The exporter acts as a translator sidecar container — a pattern Prometheus uses for most third party services.
