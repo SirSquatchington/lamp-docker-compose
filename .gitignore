@@ -10,3 +10,14 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Docker volumes and data
+docker/volumes/
+mysql_data/
+
+# Grafana
+grafana/
+grafana_data/
+
+# Prometheus data
+prometheus_data/

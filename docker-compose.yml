@@ -26,5 +26,33 @@ services:
     depends_on:
       - db
 
+  apache-exporter:
+    image: bitnami/apache-exporter
+    ports:
+      - "9117:9117"
+    command:
+      - '--scrape_uri=http://webserver/server-status?auto'
+    depends_on:
+      - webserver
+
+  prometheus:
+    image: prom/prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    depends_on:
+      - apache-exporter
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    depends_on:
+      - prometheus
+
 volumes:
   db_data:
