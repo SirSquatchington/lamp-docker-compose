@@ -1,96 +1,146 @@
-lamp-docker-compose
-A fully containerized LAMP stack (Linux, Apache, MySQL, PHP) built with Docker Compose, demonstrating multi-container orchestration, container networking, and persistent data storage.
+# lamp-docker-compose
 
-What It Does
-This project provisions a three-tier web application stack entirely in Docker:
-    • Apache + PHP — serves a PHP application via the official php:8.2-apache image 
-    • MySQL 8.0 — relational database with a persistent named volume so data survives container restarts 
-    • phpMyAdmin — web-based database management UI for interacting with MySQL visually 
+A fully containerized LAMP stack (Linux, Apache, MySQL, PHP) built with Docker Compose, demonstrating multi-container orchestration, container networking, and persistent data storage. Also includes a full observability stack with Prometheus and Grafana.
+
+---
+
+## What It Does
+
+This project provisions a complete web application stack entirely in Docker:
+
+- **Apache + PHP** — serves a PHP application via the official `php:8.2-apache` image
+- **MySQL 8.0** — relational database with a persistent named volume so data survives container restarts
+- **phpMyAdmin** — web-based database management UI for interacting with MySQL visually
+- **Apache Exporter** — translates Apache's status page into Prometheus format
+- **Prometheus** — scrapes and stores metrics every 15 seconds
+- **Grafana** — visualizes metrics as live dashboards
+
 On startup, the PHP application connects to MySQL and confirms the full stack is communicating correctly.
 
-Why I Built It
-This is the first project in a portfolio I'm building toward SRE roles. My background is in LAMP-based infrastructure and AWS, but I hadn't worked directly with containerization in a previous role. The goal here was to bridge that gap — taking a stack I already understood conceptually and rebuilding it using Docker, which is the foundation for everything else in this portfolio (CI/CD pipelines, cloud deployment, and Kubernetes down the road).
-I also wanted to understand Docker Compose specifically — how multi-container applications are defined, how container networking works, and how to make an environment fully reproducible with a single command.
+---
 
-Architecture
+## Why I Built It
+
+This is the first project in a portfolio I'm building toward SRE roles. My background is in LAMP-based infrastructure and AWS, but I hadn't worked directly with containerization in a previous role. The goal was to bridge that gap — taking a stack I already understood conceptually and rebuilding it using Docker, which is the foundation for everything else in this portfolio.
+
+I also added Prometheus and Grafana because every company I've worked at used Datadog for observability but I'd never set up the underlying monitoring infrastructure myself. Building it from scratch gave me a much better understanding of how metrics collection actually works under the hood.
+
+---
+
+## Architecture
+
+```
 Browser
    |
    | http://localhost:8090
    |
-[ webserver container ]  ←── built from Dockerfile
+[ webserver container ]  <-- built from Dockerfile
    Apache 2 + PHP 8.2
-   volume: ./src → /var/www/html
+   volume: ./src -> /var/www/html
    |
    | internal Docker network (service name: db)
    |
 [ db container ]
    MySQL 8.0
-   volume: db_data → /var/lib/mysql (persisted)
+   volume: db_data -> /var/lib/mysql (persisted)
    |
-[ phpmyadmin container ]  ←── http://localhost:8081
+[ phpmyadmin container ]  <-- http://localhost:8081
    connects to db via internal network
-All three containers share a Docker-managed internal network and communicate using service names rather than IP addresses — db resolves automatically to the MySQL container.
 
-Prerequisites
-    • Docker Desktop installed and running 
-    • WSL 2 enabled (Windows users) with Docker integration turned on 
-    • Git 
-
-How to Run
-git clone https://github.com/matyerkes/lamp-docker-compose
-cd lamp-docker-compose
-docker compose up --build
-That's it. Docker will build the webserver image and pull MySQL and phpMyAdmin from Docker Hub.
-Once running, open your browser and go to:
-    • http://localhost:8090 — PHP application (confirms MySQL connection) 
-    • http://localhost:8081 — phpMyAdmin (login: root / rootpassword) 
-To stop:
-docker compose down
-
-Project Structure
-lamp-docker-compose/
-├── src/
-│   └── index.php        # PHP app — connects to MySQL and renders confirmation
-├── docker-compose.yml   # Defines and wires all three containers
-├── Dockerfile           # Builds the Apache + PHP webserver image
-└── README.md
-
-What I Ran Into
-Files in the wrong directory — I initially created the docker-compose.yml and Dockerfile inside the src/ folder instead of the project root. Docker Compose expects to find them at the root and looks for src/ as a subdirectory from there, so the volume mount was failing silently. Moving them up one level fixed it.
-Port conflict — Port 8080 was already in use on my machine by another process. I identified it using ss -tlnp | grep 8080 and remapped the webserver to port 8090 in docker-compose.yml.
-Apache Forbidden error — After getting the containers running, Apache was returning a 403. The volume mount wasn't making index.php visible inside the container. This turned out to be a combination of the directory structure issue above and file permissions — resolved by ensuring the correct project structure and running chmod -R 755 on the src/ directory.
-These were all good learning moments — the kind of environment-level debugging that doesn't show up in tutorials but comes up constantly in real infrastructure work.
-
-Technologies Used
-    • Docker / Docker Compose 
-    • Apache HTTP Server 2.4 
-    • PHP 8.2 
-    • MySQL 8.0 
-    • phpMyAdmin 
-    • WSL 2 (Ubuntu on Windows) 
-
+[ apache-exporter container ] :9117
+   reads Apache /server-status
+   |
+[ prometheus container ] :9090
+   scrapes metrics every 15s
+   |
+[ grafana container ] :3000
+   visualizes metrics as dashboards
+```
 
 ---
 
-## Observability Stack
+## Prerequisites
 
-This project also includes a full monitoring stack built on Prometheus and Grafana.
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running
+- WSL 2 enabled (Windows users) with Docker integration turned on
+- Git
 
-### Additional Containers
+---
 
-- **Apache Exporter** — translates Apache's `/server-status` page into Prometheus format
-- **Prometheus** — scrapes and stores metrics every 15 seconds
-- **Grafana** — visualizes metrics as live dashboards
+## How to Run
 
-### Accessing the Monitoring Tools
+```bash
+git clone https://github.com/SirSquatchington/lamp-docker-compose
+cd lamp-docker-compose
+docker compose up --build
+```
 
+Once running, open your browser:
+
+- `http://localhost:8090` — PHP application (confirms MySQL connection)
+- `http://localhost:8081` — phpMyAdmin (login: `root` / `rootpassword`)
 - `http://localhost:9090` — Prometheus UI and target health
 - `http://localhost:3000` — Grafana (login: `admin` / `admin`)
 
-In Grafana, add Prometheus as a data source using `http://prometheus:9090`, then build dashboards using metrics like `apache_accesses_total`, `apache_workers`, and `apache_cpu_load`.
+To stop:
 
-### What I Ran Into
+```bash
+docker compose down
+```
 
-**Apache's status page is locked down by default** — enabling `mod_status` wasn't enough. I had to create an `apache-status.conf` file explicitly opening the endpoint and copy it into the container via the Dockerfile.
+---
 
-**The exporter pattern** — Prometheus can't scrape Apache directly since Apache doesn't natively expose metrics in Prometheus format. The exporter acts as a translator sidecar container — a pattern Prometheus uses for most third party services.
+## Project Structure
+
+```
+lamp-docker-compose/
+├── src/
+│   └── index.php             # PHP app - connects to MySQL and renders confirmation
+├── docker-compose.yml        # Defines and wires all six containers
+├── Dockerfile                # Builds the Apache + PHP webserver image
+├── prometheus.yml            # Prometheus scrape configuration
+├── apache-status.conf        # Enables Apache status endpoint for scraping
+└── README.md
+```
+
+---
+
+## Observability Dashboard
+
+Three Grafana panels showing live Apache metrics:
+
+- **Apache Total Requests** — cumulative request count over time (`apache_accesses_total`)
+- **Apache Workers** — busy, idle, and waiting worker counts (`apache_workers`)
+- **Apache CPU Load** — CPU utilization of the Apache process (`apache_cpu_load`)
+
+In Grafana, add Prometheus as a data source using `http://prometheus:9090` as the URL, then build dashboards using the metrics above.
+
+---
+
+## What I Ran Into
+
+**Files in the wrong directory** — I initially created `docker-compose.yml` and `Dockerfile` inside the `src/` folder instead of the project root. Docker Compose expects them at the root and looks for `src/` as a subdirectory, so the volume mount was failing silently.
+
+**Port conflict** — Port 8080 was already in use on my machine. Identified it with `ss -tlnp | grep 8080` and remapped the webserver to port 8090.
+
+**Apache Forbidden error** — After getting containers running, Apache returned a 403. Resolved by ensuring correct project structure and file permissions.
+
+**Apache's status page is locked down by default** — Enabling `mod_status` in the Dockerfile wasn't enough. Had to create `apache-status.conf` explicitly opening the `/server-status` endpoint and copy it into the container.
+
+**The exporter pattern** — Prometheus can't scrape Apache directly since Apache doesn't natively expose metrics in Prometheus format. The Apache Exporter acts as a translator sidecar container — a pattern Prometheus uses for most third party services.
+
+**ZSH interprets `?` as a wildcard** — When testing the Apache status page with curl, the `?` in the URL kept getting interpreted by ZSH as a file glob. The fix is to escape it: `server-status\?auto`.
+
+---
+
+## Technologies Used
+
+- Docker / Docker Compose
+- Apache HTTP Server 2.4
+- PHP 8.2
+- MySQL 8.0
+- phpMyAdmin
+- Prometheus
+- Grafana
+- Apache Exporter (bitnami/apache-exporter)
+- WSL 2 (Ubuntu on Windows)
